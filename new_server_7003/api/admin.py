@@ -4,6 +4,8 @@ from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 import sqlalchemy
 import json
 from datetime import datetime
+import os
+import xml.etree.ElementTree as ET
 
 from api.database import player_database, accounts, results, devices, whitelists, blacklists, batch_tokens, binds, webs, logs, is_admin, read_user_save_file, write_user_save_file
 from api.misc import crc32_decimal
@@ -11,11 +13,11 @@ from api.misc import crc32_decimal
 TABLE_MAP = {
         "accounts": (accounts, ["id", "username", "password_hash", "save_crc", "save_timestamp", "save_id", "coin_mp", "title", "avatar", "mobile_delta", "arcade_delta", "total_delta", "created_at", "updated_at"]),
         "results": (results, ["id", "device_id", "stts", "song_id", "mode", "avatar", "score", "high_score", "play_rslt", "item", "os", "os_ver", "ver", "created_at"]),
-        "devices": (devices, ["device_id", "user_id", "my_stage", "my_avatar", "item", "daily_day", "coin", "lvl", "title", "avatar", "created_at", "updated_at", "last_login_at"]),
+        "devices": (devices, ["device_id", "user_id", "my_stage", "my_avatar", "item", "daily_day", "coin", "lvl", "title", "avatar", "created_at", "updated_at", "bind_token", "last_login_at"]),
         "whitelist": (whitelists, ["id", "device_id"]),
         "blacklist": (blacklists, ["id", "ban_terms", "reason"]),
         "batch_tokens": (batch_tokens, ["id", "batch_token", "expire_at", "uses_left", "auth_id", "created_at", "updated_at"]),
-        "binds": (binds, ["id", "user_id", "bind_account", "bind_code", "is_verified", "auth_token", "bind_date"]),
+        "binds": (binds, ["id", "user_id", "bind_account", "bind_code", "is_verified", "bind_date"]),
         "webs": (webs, ["id", "user_id", "permission", "web_token", "last_save_export", "created_at", "updated_at"]),
         "logs": (logs, ["id", "user_id", "filename", "filesize", "timestamp"]),
     }
@@ -346,6 +348,40 @@ async def web_admin_data_save(request: Request):
 
     return JSONResponse({"status": "success", "message": "Data saved successfully."})
 
+async def web_admin_update_maintenance(request: Request):
+    adm = await is_admin(request.cookies.get("token"))
+    if not adm:
+        return JSONResponse({"status": "failed", "message": "Invalid token."}, status_code=400)
+    
+    params = await request.json()
+    status = params.get("status")
+    message_en = params.get("message_en")
+    message_ja = params.get("message_ja")
+    message_fr = params.get("message_fr")
+    message_it = params.get("message_it")
+
+    # Create the XML structure directly
+    notice_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+        <response>
+            <code>{status}</code>
+            <message>
+                <en>{message_en}</en>
+                <ja>{message_ja}</ja>
+                <fr>{message_fr}</fr>
+                <it>{message_it}</it>
+            </message>
+        </response>
+        """
+
+    # Save the XML to the file
+    notice_file_path = os.path.join('files/notice.xml')
+    try:
+        with open(notice_file_path, 'w', encoding='utf-8') as f:
+            f.write(notice_xml)
+        return JSONResponse({"status": "success", "message": "Maintenance settings updated successfully."})
+    except Exception as e:
+        return JSONResponse({"status": "failed", "message": f"An error occurred: {str(e)}"}, status_code=500)
+
 routes = [
     Route("/admin", web_admin_page, methods=["GET"]),
     Route("/admin/", web_admin_page, methods=["GET"]),
@@ -355,4 +391,5 @@ routes = [
     Route("/admin/table/insert", web_admin_table_insert, methods=["POST"]),
     Route("/admin/data", web_admin_data_get, methods=["GET"]),
     Route("/admin/data/save", web_admin_data_save, methods=["POST"]),
+    Route("/admin/update_maintenance", web_admin_update_maintenance, methods=["POST"])
 ]

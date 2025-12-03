@@ -82,6 +82,7 @@
                 <li class="nav-item"><a class="nav-link" href="#" id="bindTab">Bind</a></li>
                 <li class="nav-item"><a class="nav-link" href="#" id="websTab">Webs</a></li>
                 <li class="nav-item"><a class="nav-link" href="#" id="logsTab">Logs</a></li>
+                <li class="nav-item"><a class="nav-link" href="#" id="maintenanceTab">Maintenance</a></li>
             </ul>
             <div class="d-flex ms-auto">
                 <button class="btn btn-primary me-2" id="searchBtn">
@@ -172,6 +173,38 @@
       </div>
     </div>
   </div>
+</div>
+<!-- Maintenance Settings Modal -->
+<div class="modal fade" id="maintenanceModal" tabindex="-1" aria-labelledby="maintenanceModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+        <form id="maintenanceForm">
+            <div class="modal-header">
+            <h5 class="modal-title" id="maintenanceModalLabel">Maintenance Settings</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+            <div class="row mb-3">
+                <div class="col-md-2">
+                    <label class="form-label">Status</label>
+                    <input type="number" class="form-control" id="ServerMaintenanceStatus" placeholder="Enter status code">
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Message</label>
+                <input type="text" class="form-control mb-1" id="ServerTipsEn" placeholder="English">
+                <input type="text" class="form-control mb-1" id="ServerTipsJa" placeholder="Japanese">
+                <input type="text" class="form-control mb-1" id="ServerTipsFr" placeholder="French">
+                <input type="text" class="form-control mb-1" id="ServerTipsIt" placeholder="Italian">
+            </div>
+            </div>
+            <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary" onclick="updateMaintenance()">Save Changes</button>
+            </div>
+        </form>
+        </div>
+    </div>
 </div>
 <script>
 window.currentTableName = null;
@@ -483,6 +516,62 @@ document.getElementById('batchTokensTab').onclick = () => showTable("batch_token
 document.getElementById('bindTab').onclick = () => showTable("binds");
 document.getElementById('websTab').onclick = () => showTable("webs");
 document.getElementById('logsTab').onclick = () => showTable("logs");
+document.getElementById('maintenanceTab').onclick = () => editMaintenance();
+
+function load_maintenance() {
+    fetch('/files/notice.xml?timestamp=' + new Date().getTime())
+        .then(response => response.text())
+        .then(xmlData => {
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(xmlData, "application/xml");
+
+            const statusCode = xmlDoc.querySelector("response > code").textContent;
+            const messageEn = xmlDoc.querySelector("response > message > en").textContent;
+            const messageJa = xmlDoc.querySelector("response > message > ja").textContent;
+            const messageFr = xmlDoc.querySelector("response > message > fr").textContent;
+            const messageIt = xmlDoc.querySelector("response > message > it").textContent;
+
+            document.getElementById("ServerMaintenanceStatus").value = parseInt(statusCode, 10);
+            document.getElementById("ServerTipsEn").value = messageEn;
+            document.getElementById("ServerTipsJa").value = messageJa;
+            document.getElementById("ServerTipsFr").value = messageFr;
+            document.getElementById("ServerTipsIt").value = messageIt;
+
+            console.log('Maintenance data loaded successfully.');
+        })
+        .catch(error => console.error('Error loading notice.xml:', error));
+}
+
+load_maintenance();
+
+function editMaintenance() {
+    const maintenanceModal = new bootstrap.Modal(document.getElementById('maintenanceModal'));
+    maintenanceModal.show();
+}
+
+async function updateMaintenance() {
+    const status = parseInt(document.getElementById('ServerMaintenanceStatus').value, 10) || 0;
+    const message_en = document.getElementById('ServerTipsEn').value || "";
+    const message_ja = document.getElementById('ServerTipsJa').value || "";
+    const message_fr = document.getElementById('ServerTipsFr').value || "";
+    const message_it = document.getElementById('ServerTipsIt').value || "";
+
+    const response = await fetch('/admin/update_maintenance', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: status, message_en: message_en, message_ja: message_ja, message_fr: message_fr, message_it: message_it })
+    });
+    const result = await response.json();
+    if (result.status === "success") {
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('maintenanceModal'));
+        modal.hide();
+        load_maintenance();
+    } else {
+        alert(result.message || "Update failed.");
+    }   
+}
 
 document.getElementById('logoutBtn').addEventListener('click', function() {
     document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";

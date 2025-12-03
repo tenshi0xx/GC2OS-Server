@@ -1,14 +1,13 @@
 from starlette.responses import Response, FileResponse, HTMLResponse
 from starlette.requests import Request
 from starlette.routing import Route
-import os
 from datetime import datetime
 import xml.etree.ElementTree as ET
 import copy
 
 from config import START_COIN
 
-from api.misc import get_model_pak, get_tune_pak, get_skin_pak, get_m4a_path, get_stage_path, get_stage_zero, should_serve_init, inform_page
+from api.misc import get_model_pak, get_tune_pak, get_skin_pak, get_m4a_path, get_stage_path, get_stage_zero, should_serve_init, inform_page, get_start_xml
 from api.database import decrypt_fields_to_user_info, refresh_bind, get_user_entitlement_from_devices, set_device_data_using_decrypted_fields, create_device
 from api.crypt import decrypt_fields
 from api.template import START_AVATARS, START_STAGES, START_XML, SYNC_XML
@@ -62,7 +61,7 @@ async def start(request: Request):
         return Response("""<response><code>10</code><message><ja>Invalid request data.</ja><en>Invalid request data.</en></message></response>""", media_type="application/xml"
         )
 
-    root = copy.deepcopy(START_XML.getroot())
+    root = await get_start_xml()
 
     user_info, device_info = await decrypt_fields_to_user_info(decrypted_fields)
     username = user_info['username'] if user_info else None
@@ -74,7 +73,7 @@ async def start(request: Request):
         return Response("""<response><code>403</code><message>Access denied.</message></response>""", media_type="application/xml")
 
     if user_id:
-        await refresh_bind(user_id)
+        _ = await refresh_bind(user_id, device_id)
 
     root.append(await get_model_pak(decrypted_fields, user_id))
     root.append(await get_tune_pak(decrypted_fields, user_id))
@@ -265,7 +264,7 @@ async def bonus(request: Request):
     device_id = decrypted_fields[b'vid'][0].decode()
     user_info, device_info = await decrypt_fields_to_user_info(decrypted_fields)
 
-    root = copy.deepcopy(START_XML.getroot())
+    root = await get_start_xml()
 
     daily_reward_elem = root.find(".//login_bonus")
     last_count_elem = daily_reward_elem.find("last_count")

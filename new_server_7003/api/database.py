@@ -64,7 +64,8 @@ devices = Table(
     Column("avatar", Integer, default=1),
     Column("created_at", DateTime, default=datetime.utcnow),
     Column("updated_at", DateTime, default=datetime.utcnow, onupdate=datetime.utcnow),
-    Column("last_login_at", DateTime, default=None)
+    Column("last_login_at", DateTime, default=None),
+    Column("bind_token", String(64), unique=True, nullable=True)
 )
 
 results = Table(
@@ -141,7 +142,6 @@ binds = Table(
     Column("bind_account", String(128), unique=True, nullable=False),
     Column("bind_code", String(6), nullable=False),
     Column("is_verified", Integer, default=0),
-    Column("auth_token", String(64), unique=True),
     Column("bind_date", DateTime, default=datetime.utcnow)
 )
 
@@ -191,13 +191,13 @@ async def ensure_user_columns():
     import aiosqlite
 
     async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("PRAGMA table_info(user);") as cursor:
+        async with db.execute("PRAGMA table_info(devices);") as cursor:
             columns = [row[1] async for row in cursor]
 
         alter_needed = False
-        #if "save_id" not in columns:
-        #    await db.execute("ALTER TABLE user ADD COLUMN save_id TEXT;")
-        #    alter_needed = True
+        if "bind_token" not in columns:
+            await db.execute("ALTER TABLE devices ADD COLUMN bind_token TEXT;")
+            alter_needed = True
         #if "coin_mp" not in columns:
         #    await db.execute("ALTER TABLE user ADD COLUMN coin_mp INTEGER DEFAULT 1;")
         #    alter_needed = True
@@ -212,14 +212,16 @@ async def get_bind(user_id):
     result = await player_database.fetch_one(query)
     return dict(result) if result else None
 
-async def refresh_bind(user_id):
+async def refresh_bind(user_id, device_id):
     existing_bind = await get_bind(user_id)
     if existing_bind and existing_bind['is_verified'] == 1:
         new_auth_token = base64.urlsafe_b64encode(os.urandom(64)).decode("utf-8")
-        update_query = update(binds).where(binds.c.id == existing_bind['id']).values(
-            auth_token=new_auth_token
+        update_query = update(devices).where(devices.c.device_id == device_id).values(
+            bind_token=new_auth_token
         )
         await player_database.execute(update_query)
+        return new_auth_token
+    return ""
 
 async def log_download(user_id, filename, filesize):
     query = logs.insert().values(
@@ -255,7 +257,7 @@ async def verify_user_code(code, user_id):
 
     update_query = update(binds).where(binds.c.id == result['id']).values(
         is_verified=1,
-        auth_token=base64.urlsafe_b64encode(os.urandom(64)).decode("utf-8")
+        bind_date=datetime.utcnow()
     )
     await player_database.execute(update_query)
     return "Verified and account successfully bound."
@@ -275,6 +277,12 @@ async def decrypt_fields_to_user_info(decrypted_fields):
         return None, device_record
     
     return None, None
+
+async def get_device_info(device_id):
+    query = devices.select().where(devices.c.device_id == device_id)
+    device_record = await player_database.fetch_one(query)
+    device_record = dict(device_record) if device_record else None
+    return device_record
 
 async def user_id_to_user_info(user_id):
     user_query = accounts.select().where(accounts.c.id == user_id)
@@ -317,7 +325,7 @@ async def check_blacklist(decrypted_fields):
     return result is None
 
 async def get_user_entitlement_from_devices(user_id):
-    devices_query = devices.select().where(devices.c.user_id == user_id)
+    devices_query = select(devices.c.my_stage, devices.c.my_avatar).where(devices.c.user_id == user_id)
     devices_list = await player_database.fetch_all(devices_query)
     devices_list = [dict(dev) for dev in devices_list] if devices_list else []
 

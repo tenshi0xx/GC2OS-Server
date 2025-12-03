@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+        <response>
+            <code>1</code>
+            <message>
+                <en>testtest</en>
+                <ja>Welcome to the private server!</ja>
+                <fr>Welcome to the private server!</fr>
+                <it>Welcome to the private server!</it>
+            </message>
+        </response>
+        

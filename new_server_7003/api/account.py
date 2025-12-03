@@ -189,7 +189,7 @@ async def register(request: Request):
     if not decrypted_fields:
         return inform_page("FAILED:<br>Invalid request data.", 0)
     
-    user_info, _ = await decrypt_fields_to_user_info(decrypted_fields)
+    user_info = await user_name_to_user_info(username)
 
     if user_info:
         return inform_page("FAILED:<br>Another user already has this name.", 0)

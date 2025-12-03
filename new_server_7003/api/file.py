@@ -34,14 +34,19 @@ async def serve_file(request: Request):
             pass
 
     else:
-        existing_bind = select(binds).where((binds.c.auth_token == auth_token) & (binds.c.is_verified == 1))
-        result = await player_database.fetch_one(existing_bind)
-        if not result:
-            return Response("Unauthorized", status_code=403)
-        else:
-            daily_bytes = await get_downloaded_bytes(result['user_id'], 24)
-            if daily_bytes >= DAILY_DOWNLOAD_LIMIT:
-                return Response("Daily download limit exceeded", status_code=403)
+        existing_device_query = select(devices).where((devices.c.bind_token == auth_token))
+        existing_device = await player_database.fetch_one(existing_device_query)
+        if not existing_device:
+            return Response("Unauthorized - device not found", status_code=403)
+        
+        existing_bind_query = select(binds).where((binds.c.user_id == existing_device['user_id']) & (binds.c.is_verified == 1))
+        bind_result = await player_database.fetch_one(existing_bind_query)
+        if not bind_result:
+            return Response("Unauthorized - bind not verified", status_code=403)
+        
+        daily_bytes = await get_downloaded_bytes(bind_result['user_id'], 24)
+        if daily_bytes >= DAILY_DOWNLOAD_LIMIT:
+            return Response("Daily download limit exceeded", status_code=403)
 
     safe_filename = os.path.realpath(os.path.join(os.getcwd(), "files", "gc2", folder, filename))
     base_directory = os.path.realpath(os.path.join(os.getcwd(), "files", "gc2", folder))
@@ -55,7 +60,7 @@ async def serve_file(request: Request):
         # get size of file
         if AUTHORIZATION_MODE != 0:
             file_size = os.path.getsize(file_path)
-            await log_download(result['user_id'], filename, file_size)
+            await log_download(bind_result['user_id'], filename, file_size)
         return FileResponse(file_path)
     else:
         return Response("File not found", status_code=404)

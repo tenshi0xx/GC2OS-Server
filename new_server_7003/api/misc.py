@@ -7,8 +7,11 @@ import bcrypt
 import hashlib
 import re
 import xml.etree.ElementTree as ET
+import copy
+import os
 from config import MODEL, TUNEFILE, SKIN, AUTHORIZATION_NEEDED, AUTHORIZATION_MODE, GRANDFATHERED_ACCOUNT_LIMIT, BIND_SALT
-from api.database import get_bind, check_whitelist, check_blacklist, decrypt_fields_to_user_info, user_id_to_user_info_simple
+from api.database import get_bind, check_whitelist, check_blacklist, decrypt_fields_to_user_info, user_id_to_user_info_simple, get_device_info, refresh_bind
+from api.template import START_XML
 
 FMAX_VER = None
 FMAX_RES = None
@@ -75,18 +78,22 @@ async def get_model_pak(decrypted_fields, user_id):
     mid = ET.Element("model_pak")
     rid = ET.Element("date")
     uid = ET.Element("url")
+    device_id = decrypted_fields[b'vid'][0].decode()
 
     host = await get_host_string()
 
     if AUTHORIZATION_MODE == 0:
-        auth_token = decrypted_fields[b'vid'][0].decode()
+        auth_token = device_id
         rid.text = MODEL
         uid.text = host + "files/gc2/" + auth_token + "/pak/model" + MODEL + ".pak"
     else:
         if user_id:
+            device_info = await get_device_info(device_id)
             bind_info = await get_bind(user_id)
             if bind_info and bind_info['is_verified'] == 1:
-                auth_token = bind_info['auth_token']
+                auth_token = device_info['bind_token']
+                if not auth_token:
+                    auth_token = await refresh_bind(user_id, device_id)
                 rid.text = MODEL
                 uid.text = host + "files/gc2/" + auth_token + "/pak/model" + MODEL + ".pak"
             else:
@@ -104,18 +111,20 @@ async def get_tune_pak(decrypted_fields, user_id):
     mid = ET.Element("tuneFile_pak")
     rid = ET.Element("date")
     uid = ET.Element("url")
+    device_id = decrypted_fields[b'vid'][0].decode()
 
     host = await get_host_string()
 
     if AUTHORIZATION_MODE == 0:
-        auth_token = decrypted_fields[b'vid'][0].decode()
+        auth_token = device_id
         rid.text = TUNEFILE
         uid.text = host + "files/gc2/" + auth_token + "/pak/tuneFile" + TUNEFILE + ".pak"
     else:
         if user_id:
+            device_info = await get_device_info(device_id)
             bind_info = await get_bind(user_id)
             if bind_info and bind_info['is_verified'] == 1:
-                auth_token = bind_info['auth_token']
+                auth_token = device_info['bind_token']
                 rid.text = TUNEFILE
                 uid.text = host + "files/gc2/" + auth_token + "/pak/tuneFile" + TUNEFILE + ".pak"
             else:
@@ -133,18 +142,20 @@ async def get_skin_pak(decrypted_fields, user_id):
     mid = ET.Element("skin_pak")
     rid = ET.Element("date")
     uid = ET.Element("url")
+    device_id = decrypted_fields[b'vid'][0].decode()
 
     host = await get_host_string()
 
     if AUTHORIZATION_MODE == 0:
-        auth_token = decrypted_fields[b'vid'][0].decode()
+        auth_token = device_id
         rid.text = SKIN
         uid.text = host + "files/gc2/" + auth_token + "/pak/skin" + SKIN + ".pak"
     else:
         if user_id:
+            device_info = await get_device_info(device_id)
             bind_info = await get_bind(user_id)
             if bind_info and bind_info['is_verified'] == 1:
-                auth_token = bind_info['auth_token']
+                auth_token = device_info['bind_token']
                 rid.text = SKIN
                 uid.text = host + "files/gc2/" + auth_token + "/pak/skin" + SKIN + ".pak"
             else:
@@ -160,16 +171,18 @@ async def get_skin_pak(decrypted_fields, user_id):
     
 async def get_m4a_path(decrypted_fields, user_id):
     host = await get_host_string()
+    device_id = decrypted_fields[b'vid'][0].decode()
     if AUTHORIZATION_MODE == 0:
-        auth_token = decrypted_fields[b'vid'][0].decode()
+        auth_token = device_id
         mid = ET.Element("m4a_path")
         mid.text = host + "files/gc2/" + auth_token + "/audio/"
     else:
         if user_id:
+            device_info = await get_device_info(device_id)
             bind_info = await get_bind(user_id)
             if bind_info and bind_info['is_verified'] == 1:
                 mid = ET.Element("m4a_path")
-                mid.text = host + "files/gc2/" + bind_info['auth_token'] + "/audio/"
+                mid.text = host + "files/gc2/" + device_info['bind_token'] + "/audio/"
             else:
                 mid = ET.Element("m4a_path")
                 mid.text = host
@@ -181,16 +194,18 @@ async def get_m4a_path(decrypted_fields, user_id):
 
 async def get_stage_path(decrypted_data, user_id):
     host = await get_host_string()
+    device_id = decrypted_data[b'vid'][0].decode()
     if AUTHORIZATION_MODE == 0:
-        auth_token = decrypted_data[b'vid'][0].decode()
+        auth_token = device_id
         mid = ET.Element("stage_path")
         mid.text = host + "files/gc2/" + auth_token + "/stage/"
     else:
         if user_id:
+            device_info = await get_device_info(device_id)
             bind_info = await get_bind(user_id)
             if bind_info and bind_info['is_verified'] == 1:
                 mid = ET.Element("stage_path")
-                mid.text = host + "files/gc2/" + bind_info['auth_token'] + "/stage/"
+                mid.text = host + "files/gc2/" + device_info['bind_token'] + "/stage/"
             else:
                 mid = ET.Element("stage_path")
                 mid.text = host
@@ -293,3 +308,14 @@ async def get_host_string():
     from config import OVERRIDE_HOST, HOST, PORT
     host_string = OVERRIDE_HOST if OVERRIDE_HOST is not None else ("http://" + HOST + ":" + str(PORT) + "/")
     return host_string
+
+async def get_start_xml():
+    root = copy.deepcopy(START_XML.getroot())
+    with open(os.path.join('files/notice.xml'), 'r', encoding='utf-8') as f:
+        response_xml = ET.parse(f)
+        response_root = response_xml.getroot()
+
+        for child in response_root:
+            root.append(child)
+
+    return root
