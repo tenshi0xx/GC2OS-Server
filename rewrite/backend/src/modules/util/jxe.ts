@@ -1,6 +1,6 @@
 /*
 *
-* Coded with AI (Sorry in Advance)
+* Now fixing some red okay it's was a type error (Sorry in Advance)
 * - "Rimaki"
 */
 import fs from "fs";
@@ -12,7 +12,7 @@ import js2xmlparser from "js2xmlparser";
  * @param {string} targetPath - directory OR file path
  * @param {string} name - template name (used only if targetPath is dir)
  */
-function resolveTemplatePath(targetPath, name) {
+function resolveTemplatePath(targetPath: string, name: string) {
     const resolved = path.resolve(targetPath);
 
     // If direct file path → use it
@@ -31,7 +31,7 @@ function resolveTemplatePath(targetPath, name) {
 /**
  * Load JSON template
  */
-function loadTemplate(targetPath, name) {
+function loadTemplate(targetPath: string, name: string) {
     const file = resolveTemplatePath(targetPath, name);
 
     if (!fs.existsSync(file)) {
@@ -45,12 +45,12 @@ function loadTemplate(targetPath, name) {
  * JSON → XML executor
  *
  * @param {string} targetPath - dir OR json file path
- * @param {string|null} name - template name (ignored if file path)
+ * @param {string} name - template name (ignored if file path)
  * @param {object} data - dynamic data
  * @param {string} root - xml root name
  * @returns {string} XML string
  */
-export function jxe(targetPath, name = null, data = {}, root = "response") {
+export function jxe(targetPath: string, name: string , data = {}, root = "response") {
     const template = loadTemplate(targetPath, name);
 
     if (template.data && typeof template.data === "object") {
