@@ -6,7 +6,10 @@
     "dev": "bun run --watch src/index.ts"
   },
   "dependencies": {
-    "elysia": "latest"
+    "elysia": "latest",
+    "fs": "^0.0.1-security",
+    "js2xmlparser": "^5.0.0",
+    "path": "^0.12.7"
   },
   "devDependencies": {
     "bun-types": "latest"
