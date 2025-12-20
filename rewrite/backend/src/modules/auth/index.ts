@@ -1,16 +1,16 @@
-import { Elysia } from "elysia"
-import { xml } from "elysia-xml"
-import { decrypt } from "../crypt/module"
+import { Context, Elysia } from "elysia"
+import * as gc2crypt from "./crypt/module"
 
-interface AuthRequestBody {
-    encrypted_payload: string;
-}
-
-type AuthQuery = {
-    auth_token?: string;
+function rawpayload(ctx: Context): string{
+    const url = ctx.request.url
+    const payload = url.indexOf("?")
+    /* The Payload Getter Function */ 
+    if (payload === -1)
+        throw new Error("Payload Runtime Error (Unable to Get Payload Correctly")
+    return url.slice(payload + 1)
 }
 
 export const gc2_auth = new Elysia() // wHY I NEED TO LET IT BLANK WTH it's feels wrong
-    .group("/auth", (gc2_auth) => {
-        .get("start.php", (Headers))
-    })
+gc2_auth.get('start.php', (ctx) => {
+       const raw = rawpayload(ctx)
+})

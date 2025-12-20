@@ -1,7 +1,186 @@
 {
-    "__comment": "This is Test Json Data Sorry for advance",
-    "responseData": {
-        "code" : 0,
-        "messages": "This is Nextjs & ElysiaJS Rewrite \n Stability is not expected"
+    "__comment": "This is Test Json Data (And Reward Was Heavy As Heck -_-",
+    "__jsondataver": 1.0,
+    "response": {
+        "area": "us",
+        "is_tutorial": 0,
+        "cm_button_level": 10,
+        "login_bonus": {
+            "status": 1,
+            "last_count": 28,
+            "count_update": 1,
+            "reward": [
+                {
+                    "count": 1,
+                    "cnt_type": 3,
+                    "cnt_id": 1,
+                    "num": 1
+		        },
+                {
+                    "count": 2,
+                    "cnt_type": 3,
+                    "cnt_id": 2,
+                    "num": 1
+                },
+                {
+                    "count": 3,
+                    "cnt_type": 2,
+                    "cnt_id": 10,
+                    "num": 1
+                },
+                {
+                    "count": 4,
+                    "cnt_type": 3,
+                    "cnt_id": 3,
+                    "num": 1
+                },
+                {
+                    "count": 5,
+                    "cnt_type": 3,
+                    "cnt_id": 4,
+                    "num": 1
+                },
+                {
+                    "count": 6,
+                    "cnt_type": 3,
+                    "cnt_id": 5,
+                    "num": 1
+                },
+                {
+                    "count": 7,
+                    "cnt_type": 1,
+                    "cnt_id": 213,
+                    "num": 1
+                },
+                {
+                    "count": 8,
+                    "cnt_type": 3,
+                    "cnt_id": 6,
+                    "num": 1
+                },
+                {
+                    "count": 9,
+                    "cnt_type": 3,
+                    "cnt_id": 7,
+                    "num": 1
+                },
+                {
+                    "count": 10,
+                    "cnt_type": 2,
+                    "cnt_id": 11,
+                    "num": 1
+                },
+                {
+                    "count": 11,
+                    "cnt_type": 3,
+                    "cnt_id": 8,
+                    "num": 1
+                },
+                {
+                    "count": 12,
+                    "cnt_type": 3,
+                    "cnt_id": 9,
+                    "num": 1
+                },
+                {
+                    "count": 13,
+                    "cnt_type": 3,
+                    "cnt_id": 10,
+                    "num": 1
+                },
+                {
+                    "count": 14,
+                    "cnt_type": 1,
+                    "cnt_id": 277,
+                    "num": 1
+                },
+                {
+                    "count": 15,
+                    "cnt_type": 3,
+                    "cnt_id": 1,
+                    "num": 1
+                },
+                {
+                    "count": 16,
+                    "cnt_type": 3,
+                    "cnt_id": 2,
+                    "num": 1
+                },
+                {
+                    "count": 17,
+                    "cnt_type": 2,
+                    "cnt_id": 12,
+                    "num": 1
+                },
+                {
+                    "count": 18,
+                    "cnt_type": 3,
+                    "cnt_id": 3,
+                    "num": 1
+                },
+                {
+                    "count": 19,
+                    "cnt_type": 3,
+                    "cnt_id": 4,
+                    "num": 1
+                },
+                {
+                    "count": 20,
+                    "cnt_type": 3,
+                    "cnt_id": 5,
+                    "num": 1
+                },
+                {
+                    "count": 21,
+                    "cnt_type": 1,
+                    "cnt_id": 297,
+                    "num": 1
+                },
+                {
+                    "count": 22,
+                    "cnt_type": 3,
+                    "cnt_id": 6,
+                    "num": 1
+                },
+                {
+                    "count": 23,
+                    "cnt_type": 3,
+                    "cnt_id": 7,
+                    "num": 1
+                },
+                {
+                    "count": 24,
+                    "cnt_type": 2,
+                    "cnt_id": 13,
+                    "num": 1
+                },
+                {
+                    "count": 25,
+                    "cnt_type": 3,
+                    "cnt_id": 8,
+                    "num": 1
+                },
+                {
+                    "count": 26,
+                    "cnt_type": 3,
+                    "cnt_id": 9,
+                    "num": 1
+                },
+                {
+                    "count": 27,
+                    "cnt_type": 3,
+                    "cnt_id": 10,
+                    "num": 1
+                },
+                {
+                    "count": 28,
+                    "cnt_type": 1,
+                    "cnt_id": 121,
+                    "num": 1
+                }
+            ]
+        },
+        "app_data_sync": 1,
+        "code" : 0
     }
 }
