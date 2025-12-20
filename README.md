@@ -1,8 +1,11 @@
 # Groove-Coaster-2OS-Server
 
-A small local server for `Groove Coaster 2: Original Style`, implemented with `Python` and ~~Flask~~ `Starlette`. 
+A small local server for `Groove Coaster 2: Original Style`
 
-一个基于`Python`和~~Flask~~`Starlette`的微型`Groove Coaster 2: Original Style`本地服务器。
+Now Ported In Nextjs And Elysiajs as api
+
+This port would focus on http serving speed and better bandwidth except security
+
 
 <details>
 <summary>English</summary>
@@ -27,14 +30,14 @@ Warning: Do not put personal files under the folders in the private server direc
 | Features            | Degree of support                                                                                                      |
 |---------------------|------------------------------------------------------------------------------------------------------------------------|
 | Asset delivery      | .pak, stage and music zip files                                                                                        |
-| Shop                | Purchase individual songs, avatars, and items using GCoin. GCoins are earned by playing the game. Does not support music preview. Does not support song pack. |
-| Ranking             | Individual song-difficulty ranking. Support total score ranking, but does not support regional ranking. Does not support viewing player profile.        |
-| Save backup         | Support save/load via an Account system. Support password and username changes. Support logging out.                   |
-| Titles              | Static full-unlock and setting titles via "Status".                                                                    |
-| Mission             | Basic automatic song unlock after reaching in-game levels. Everything else is not supported.                 |
-| Friend              | Not supported.                                                                                                         |
-| Progress Grid       | Not supported.                                                                                                         |
-| Additional features | Account/device whitelisting and banning, batch download API, user center, admin panel, MFA authentication modes                                      |
+| Shop                | Purchase individual songs, avatars, and items using GCoin. GCoins are earned by playing the game. Support Preview Song Soon |
+| Ranking             | Soon        |
+| Save backup         | Soon                   |
+| Titles              | Soon                                                                    |
+| Mission             | Soon (4th Focus)                 |
+| Friend              | Unable to support due to limitations.                                                                                                       |
+| Progress Grid       | Just Not Supported (Idk what function is it)                                                                                                      |
+| Additional features | Better Serving speed, Performance Focus Based, JSON Instead of xml (Conversion Is Automatically done for gc2)                                  |
 
 ## Download
 
