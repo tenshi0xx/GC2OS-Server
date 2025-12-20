@@ -3,38 +3,59 @@
 * Coded with AI (Sorry in Advance)
 * - "Rimaki"
 */
-
 import fs from "fs";
 import path from "path";
 import js2xmlparser from "js2xmlparser";
 
-export interface JXEData {
-    [key: string]: any;
-}
+/**
+ * Resolve JSON template path
+ * @param {string} targetPath - directory OR file path
+ * @param {string} name - template name (used only if targetPath is dir)
+ */
+function resolveTemplatePath(targetPath, name) {
+    const resolved = path.resolve(targetPath);
 
-export interface JXETemplate {
-    status: string;
-    message: string;
-    data?: JXEData;
-}
+    // If direct file path → use it
+    if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) {
+        return resolved;
+    }
 
-const TEMPLATE_DIR = path.resolve('./templates');
+    // Otherwise treat as directory
+    if (!name) {
+        throw new Error("Template name required when using directory path");
+    }
 
-export function loadTemplate(name: string): JXETemplate {
-    const file = path.join(TEMPLATE_DIR, `${name}.json`);
-    if (!fs.existsSync(file)) throw new Error(`Template ${name} not found`);
-    return JSON.parse(fs.readFileSync(file, "utf-8")) as JXETemplate;
+    return path.join(resolved, `${name}.json`);
 }
 
 /**
- * Converts JSON template + optional data to XML
- * @param name - template name
- * @param data - optional dynamic data
- * @param rootName - XML root element name
- * @returns XML string
+ * Load JSON template
  */
-export function jxe(name: string, data: JXEData = {}, rootName = "response"): string {
-    const template = loadTemplate(name);
-    if (template.data) template.data = { ...template.data, ...data };
-    return js2xmlparser.parse(rootName, template);
+function loadTemplate(targetPath, name) {
+    const file = resolveTemplatePath(targetPath, name);
+
+    if (!fs.existsSync(file)) {
+        throw new Error(`JXE template not found: ${file}`);
+    }
+
+    return JSON.parse(fs.readFileSync(file, "utf-8"));
+}
+
+/**
+ * JSON → XML executor
+ *
+ * @param {string} targetPath - dir OR json file path
+ * @param {string|null} name - template name (ignored if file path)
+ * @param {object} data - dynamic data
+ * @param {string} root - xml root name
+ * @returns {string} XML string
+ */
+export function jxe(targetPath, name = null, data = {}, root = "response") {
+    const template = loadTemplate(targetPath, name);
+
+    if (template.data && typeof template.data === "object") {
+        template.data = { ...template.data, ...data };
+    }
+
+    return js2xmlparser.parse(root, template);
 }
