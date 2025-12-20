@@ -1,15 +1,15 @@
-# Elysia with Bun runtime
+# GC2OS-Server-BackendRuntime
 
-## Getting Started
-To get started with this template, simply paste this command into your terminal:
+## How to run
 ```bash
-bun create elysia ./elysia-example
-```
-
-## Development
-To start the development server run:
-```bash
-bun run dev
-```
-
-Open http://localhost:3000/ with your browser to see the result.
+bun run src/index.ts
+or
+bun build \
+	--compile \
+	--minify-whitespace \
+	--minify-syntax \
+	--target bun \
+	--outfile server \
+	src/index.ts
+after that run
+./server (recommend for production and better speed afterall)
