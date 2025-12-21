@@ -2,7 +2,7 @@ import { env, file } from "bun";
 import { Elysia } from "elysia";
 import { gc2_auth } from "./modules/auth/index"
 import * as fs from "fs";
-import { Logger } from "./modules/util/logger";
+import { logger, Logger } from "./modules/util/logger";
 import { rawurldata } from "./modules/util/url";
 
 const gc2_logger = new Logger()
@@ -45,15 +45,16 @@ try {
   gc2_logger.modulelog("Try to Check Spelling or file location if it's not then report in issues I'll check okay?", "Facts")
 
   const gc2_backend_core = new Elysia({ serve: serveOptions });
-  gc2_backend_core.onBeforeHandle((ctx) => {
-    const currentRequestUrl = ctx.request.url
-    return currentRequestUrl
-  })
+  gc2_backend_core.group("*.php", (app) => {
+    app.use(gc2_auth)
+    return gc2_auth;
+  });
 
-  gc2_backend_core.get("start.php", (ctx) => {
-    const raw = rawurldata(ctx)
-
-    gc2_logger.info(`Module Log ${raw}`)
+  
+  gc2_backend_core.listen({
+    hostname: hosti,
+    port: port
   })
+  gc2_logger.modulelog(`GC2 Backend Is Online at ${https_enabled ? "https" : "http"}://${hosti}:${port}` , "Server Status")
 
 }
