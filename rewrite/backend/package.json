@@ -3,7 +3,9 @@
   "version": "1.0.50",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "bun run --watch src/index.ts"
+    "dev": "bun run --watch src/index.ts",
+    "build": "bun build --compile --minify-whitespace --minify-syntax --target bun --outfile gc2_backend src/index.ts",
+    "build:arm64": "bun build --compile --minify-whitespace --minify-syntax --target bun-linux-arm64 --outfile gc2_backend_arm64 src/index.ts"
   },
   "dependencies": {
     "elysia": "latest",
