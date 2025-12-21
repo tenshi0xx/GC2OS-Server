@@ -27,4 +27,5 @@ gc2_auth.get('start.php', (ctx) => {
        const raw = rawpayload(ctx)
        const decrypted = gc2crypt.decryptAES(raw, AES_CBC_KEY, AES_CBC_IV)
        console.log(decrypted)
+       /* I wana check Fields First Update Soon */
 })

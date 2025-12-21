@@ -3,6 +3,7 @@ import { Elysia } from "elysia";
 import { gc2_auth } from "./modules/auth/index"
 import * as fs from "fs";
 import { Logger } from "./modules/util/logger";
+import { rawurldata } from "./modules/util/url";
 
 const gc2_logger = new Logger()
 
@@ -44,9 +45,15 @@ try {
   gc2_logger.modulelog("Try to Check Spelling or file location if it's not then report in issues I'll check okay?", "Facts")
 
   const gc2_backend_core = new Elysia({ serve: serveOptions });
+  gc2_backend_core.onBeforeHandle((ctx) => {
+    const currentRequestUrl = ctx.request.url
+    return currentRequestUrl
+  })
 
   gc2_backend_core.get("start.php", (ctx) => {
-    return "Blank Data"
+    const raw = rawurldata(ctx)
+
+    gc2_logger.info(`Module Log ${raw}`)
   })
 
 }
