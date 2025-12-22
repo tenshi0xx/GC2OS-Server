@@ -39,10 +39,9 @@ try {
   }
 } catch (err) {
   serveOptions: undefined;
-  gc2_logger.configWarn("SSL/TLS Configuration Was Errored (Bad Joke Ahead)")
-  gc2_logger.modulelog("Did you know RimakiTaema Was Obsessed In Gate Lol (Currently Anime)", "Useless As Hell")
-  gc2_logger.modulelog("Here Proof Lol: (Hail Nah I wouldn't put it)", "Useless As Hell")
-  gc2_logger.modulelog("Try to Check Spelling or file location if it's not then report in issues I'll check okay?", "Facts")
+  /* The Jokes Was Nuked To prepare in prod mainstream repo (Not my repo)*/
+  gc2_logger.configWarn("SSL/TLS Configuration Was Errored")
+  gc2_logger.modulelog("Try to Check Spelling or file location", "gc2_auth")
 
   const gc2_backend_core = new Elysia({ serve: serveOptions });
   gc2_backend_core.group("*.php", (app) => {
