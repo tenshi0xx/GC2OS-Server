@@ -4,7 +4,7 @@ So this is basically a continuation of the original project, but cleaner and wit
 
 If you want to contribute, feel free!  Just know that I'll be checking everything before merging it in. Always happy to have more people helping out - we're all in this together as a community.
 
-Want more details?  Check out the old README below.
+Want more details? Check out the old README below.
 
 Oh, and heads up - we're currently running the `7003` Server. If you're looking for the old server stuff, just browse through the others folder. 
 
