@@ -38,7 +38,8 @@ try {
     throw new Error("[Critical] : HTTPS Technology Unable to load due to missing either key or cert please check in .env for correction \n fallback to http was made");
   }
 } catch (err) {
-  serveOptions: undefined;
+  /* I forgot to change to "=" bruh */
+  serveOptions = undefined;
   /* The Jokes Was Nuked To prepare in prod mainstream repo (Not my repo)*/
   gc2_logger.configWarn("SSL/TLS Configuration Was Errored")
   gc2_logger.modulelog("Try to Check Spelling or file location", "gc2_auth")
