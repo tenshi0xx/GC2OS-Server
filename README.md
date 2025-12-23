@@ -2,11 +2,9 @@
 
 A small local server for `Groove Coaster 2: Original Style`
 
-~~~
-Now Ported In Nextjs And Elysiajs as api
+~~Now Ported In Nextjs And Elysiajs as api~~
 
-This port would focus on http serving speed and better bandwidth except security
-~~~
+~~This port would focus on http serving speed and better bandwidth except security~~
 Porting Cancelled
 Due to more issues can occurs likes
 - Need nodejs installations
