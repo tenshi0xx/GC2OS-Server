@@ -46,8 +46,6 @@ def init_templates():
 
     base_path = 'api/config/'
     xml_path = 'files/'
-    print("[TEMPLATES] Initializing templates...")
-
     try:
         with open(os.path.join(base_path, 'song_list.json'), 'r', encoding='utf-8') as f:
             SONG_LIST = json.load(f)
@@ -93,3 +91,6 @@ def init_templates():
         print(f"Error: {e}")
     except json.JSONDecodeError as e:
         print(f"Error decoding JSON: {e}")
+
+def init_templates_exp():
+    
