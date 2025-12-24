@@ -1,4 +1,2 @@
 __pycache__/
-player.db
-.env
-.env.local
+*.db
