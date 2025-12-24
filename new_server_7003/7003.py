@@ -22,7 +22,7 @@ from config import DEBUG, SSL_CERT, SSL_KEY, ACTUAL_HOST, ACTUAL_PORT, BATCH_DOW
 # stupid loading sequence (added expermential json check)
 from api.template import init_templates, init_templates_exp_json
 if (EXP_JSON_DATA == True):
-    warn_log("Expermential JSON Data format was turned on \n if any issues occured while using json data format please report issues in github", "7003", FutureWarning, 1)
+    warn_log("Expermential JSON Data format was turned on \n if any issues occured while using json data format please report issues in github", "7003", FutureWarning)
     init_templates_exp_json()
 else:
     init_templates()
