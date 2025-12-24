@@ -1,7 +1,7 @@
 import json
 import os
 import xml.etree.ElementTree as ET
-
+from api.logger import *
 
 SONG_LIST = []
 AVATAR_LIST = []
@@ -92,5 +92,16 @@ def init_templates():
     except json.JSONDecodeError as e:
         print(f"Error decoding JSON: {e}")
 
-def init_templates_exp():
-    
+def init_templates_exp_json():
+    global SONG_LIST, AVATAR_LIST, ITEM_LIST, EXP_UNLOCKED_SONGS
+    global START_XML, SYNC_XML, RESULT_XML
+
+    base_path = 'api/config'
+    json_path = 'files/exp_json'
+
+    try
+        with open(os.path.join(base_path, 'song_list.json', 'r', encoding="utf-8")) as f:
+            SONG_LIST = json.load(f)
+            
+    except: FileNotFoundError as e:
+        error_log()
