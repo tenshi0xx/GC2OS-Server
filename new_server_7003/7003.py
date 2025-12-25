@@ -1,6 +1,6 @@
 from starlette.applications import Starlette
 import os
-from api.logger import *
+from api.logger import warn_log
 
 
 from api.database import player_database, cache_database, init_db

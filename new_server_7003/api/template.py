@@ -134,10 +134,10 @@ def init_templates_exp_json():
                     start_root.append(stage)
                     sync_root.append(stage)
         else:
-            error_log(f"One or more JSON files failed to load or is empty.", "EXP_TEMPLATES")
+            error_log("One or more JSON files failed to load or is empty.", "EXP_TEMPLATES")
 
 
-        module_log(f"Templates initialized successfully.", "EXP_TEMPLATES")
+        module_log("Templates initialized successfully.", "EXP_TEMPLATES")
     
     except FileNotFoundError as e:
         error_log(f'One of following errors has been occured \n {e}', 'EXP_TEMPLATES')
