@@ -1,7 +1,8 @@
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime
+from datetime import datetime, timezone
+import aiofiles
 
 from config import SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD
 
@@ -25,8 +26,8 @@ def init_email():
 async def send_email(to_addr, code, lang):
     global server
     title = {"en": "Project Taiyo - Email Verification", "zh": "项目 Taiyo - 邮件验证", "tc": "專案 Taiyo - 郵件驗證", "jp": "プロジェクト Taiyo - メール認証"}
-    with open(f"web/email_{lang}.html", "r", encoding="utf-8") as file:
-        body = file.read()
+    async with aiofiles.open(f"web/email_{lang}.html", "r", encoding="utf-8") as file:
+        body = await file.read()
 
     body = body.format(code=code)
 
@@ -48,18 +49,17 @@ async def send_email_to_user(email, user_id):
         return "Invalid Email."
     
     verify = await player_database.fetch_one(binds.select().where(binds.c.bind_account == email))
-    if verify:
-        if (datetime.utcnow() - verify['bind_date']).total_seconds() < 60:
-            return "Too many requests. Please try again later."
+    if verify and (datetime.now(timezone.utc).replace(tzinfo=None) - verify['bind_date']).total_seconds() < 60:
+        return "Too many requests. Please try again later."
 
-    verify_code, hash_code = generate_otp()
+    verify_code, _ = generate_otp()
     try:
         await send_email(email, verify_code, "en")
         if verify:
             await player_database.execute(binds.update().where(binds.c.user_id == user_id).values(
                 bind_account=email,
                 bind_code=verify_code,
-                bind_date=datetime.utcnow()
+                bind_date=datetime.now(timezone.utc).replace(tzinfo=None)
             ))
         else:
             query = binds.insert().values(
@@ -67,7 +67,7 @@ async def send_email_to_user(email, user_id):
                 bind_account=email,
                 bind_code=verify_code,
                 is_verified=0,
-                bind_date=datetime.utcnow()
+                bind_date=datetime.now(timezone.utc).replace(tzinfo=None)
             )
             await player_database.execute(query)
 

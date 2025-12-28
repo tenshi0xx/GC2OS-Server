@@ -1,10 +1,12 @@
 from starlette.responses import HTMLResponse
 from starlette.requests import Request
 from starlette.routing import Route
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 import json
-import time
+import aiofiles
+
+CONFIG_PATH = 'api/config/'
 
 from api.database import player_database, batch_tokens
 from config import THREAD_COUNT
@@ -25,7 +27,7 @@ async def batch_handler(request: Request):
     if not result:
         return HTMLResponse(content="Invalid token", status_code=400)
 
-    if result['expire_at'] < datetime.utcnow():
+    if result['expire_at'] < datetime.now(timezone.utc).replace(tzinfo=None):
         return HTMLResponse(content="Token expired", status_code=400)
     
     uses_left = result['uses_left']
@@ -33,22 +35,22 @@ async def batch_handler(request: Request):
         uses_left -= 1
         update_query = batch_tokens.update().where(batch_tokens.c.batch_token == token).values(
             uses_left=uses_left,
-            updated_at=datetime.utcnow()
+            updated_at=datetime.now(timezone.utc).replace(tzinfo=None)
         )
         await player_database.execute(update_query)
 
     else:
         return HTMLResponse(content="No uses left", status_code=400)
     
-    with open(os.path.join('api/config/', 'download_manifest.json'), 'r', encoding='utf-8') as f:
-            stage_manifest = json.load(f)
+    async with aiofiles.open(os.path.join(CONFIG_PATH, 'download_manifest.json'), 'r', encoding='utf-8') as f:
+        stage_manifest = json.loads(await f.read())
 
     if platform == "Android":
-        with open(os.path.join('api/config/', 'download_manifest_android.json'), 'r', encoding='utf-8') as f:
-            audio_manifest = json.load(f)
+        async with aiofiles.open(os.path.join(CONFIG_PATH, 'download_manifest_android.json'), 'r', encoding='utf-8') as f:
+            audio_manifest = json.loads(await f.read())
     else:
-        with open(os.path.join('api/config/', 'download_manifest_ios.json'), 'r', encoding='utf-8') as f:
-            audio_manifest = json.load(f)
+        async with aiofiles.open(os.path.join(CONFIG_PATH, 'download_manifest_ios.json'), 'r', encoding='utf-8') as f:
+            audio_manifest = json.loads(await f.read())
 
     download_manifest = {
         "stage": stage_manifest,

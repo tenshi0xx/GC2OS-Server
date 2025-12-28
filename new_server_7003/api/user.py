@@ -4,6 +4,7 @@ from starlette.routing import Route
 from datetime import datetime
 import xml.etree.ElementTree as ET
 import copy
+import aiofiles
 
 from config import START_COIN
 
@@ -13,10 +14,15 @@ from api.crypt import decrypt_fields
 from api.template import START_AVATARS, START_STAGES, START_XML, SYNC_XML
 from config import SIMULTANEOUS_LOGINS
 
+XML_CONTENT_TYPE = "application/xml"
+XML_INVALID_REQUEST = """<response><code>10</code><message><ja>Invalid request data.</ja><en>Invalid request data.</en></message></response>"""
+XML_ACCESS_DENIED = """<response><code>403</code><message>Access denied.</message></response>"""
+XML_EMPTY_RESPONSE = """<?xml version="1.0" encoding="UTF-8"?><response><code>0</code></response>"""
+
 async def info(request: Request):
     try:
-        with open("web/history.html", "r", encoding="utf-8") as file:
-            html_content = file.read().format(SIMULTANEOUS_LOGINS=SIMULTANEOUS_LOGINS)
+        async with aiofiles.open("web/history.html", "r", encoding="utf-8") as file:
+            html_content = (await file.read()).format(SIMULTANEOUS_LOGINS=SIMULTANEOUS_LOGINS)
     except FileNotFoundError:
         return inform_page("history.html not found", 1)
     
@@ -24,42 +30,35 @@ async def info(request: Request):
 
 async def history(request: Request):
     try:
-        with open("web/history.html", "r", encoding="utf-8") as file:
-            html_content = file.read().format(SIMULTANEOUS_LOGINS=SIMULTANEOUS_LOGINS)
+        async with aiofiles.open("web/history.html", "r", encoding="utf-8") as file:
+            html_content = (await file.read()).format(SIMULTANEOUS_LOGINS=SIMULTANEOUS_LOGINS)
     except FileNotFoundError:
         return inform_page("history.html not found", 1)
     
     return HTMLResponse(html_content)
 
-async def delete_account(request):
-    # This only tricks the client to clear its local data for now
+def delete_account(request):
     return Response(
         """<?xml version="1.0" encoding="UTF-8"?><response><code>0</code><taito_id></taito_id></response>""",
-        media_type="application/xml"
+        media_type=XML_CONTENT_TYPE
     )
 
 async def tier(request: Request):
-    html_path = f"files/tier.xml"
-
     try:
-        with open(html_path, "r", encoding="utf-8") as file:
-            xml_content = file.read()
+        async with aiofiles.open("files/tier.xml", "r", encoding="utf-8") as file:
+            xml_content = await file.read()
     except FileNotFoundError:
-        return Response(
-        """<?xml version="1.0" encoding="UTF-8"?><response><code>0</code></response>""",
-        media_type="application/xml"
-    )
+        return Response(XML_EMPTY_RESPONSE, media_type=XML_CONTENT_TYPE)
     
-    return Response(xml_content, media_type="application/xml")
+    return Response(xml_content, media_type=XML_CONTENT_TYPE)
 
-async def reg(request: Request):
+def reg(request: Request):
     return Response("", status_code=200)
 
 async def start(request: Request):
     decrypted_fields, _ = await decrypt_fields(request)
     if not decrypted_fields:
-        return Response("""<response><code>10</code><message><ja>Invalid request data.</ja><en>Invalid request data.</en></message></response>""", media_type="application/xml"
-        )
+        return Response(XML_INVALID_REQUEST, media_type=XML_CONTENT_TYPE)
 
     root = await get_start_xml()
 
@@ -68,9 +67,8 @@ async def start(request: Request):
     user_id = user_info['id'] if user_info else None
     device_id = decrypted_fields[b'vid'][0].decode()
 
-    should_serve_result = await should_serve_init(decrypted_fields)
-    if not should_serve_result:
-        return Response("""<response><code>403</code><message>Access denied.</message></response>""", media_type="application/xml")
+    if not await should_serve_init(decrypted_fields):
+        return Response(XML_ACCESS_DENIED, media_type=XML_CONTENT_TYPE)
 
     if user_id:
         _ = await refresh_bind(user_id, device_id)
@@ -82,11 +80,11 @@ async def start(request: Request):
     root.append(await get_stage_path(decrypted_fields, user_id))
     daily_reward_elem = root.find(".//login_bonus")
     if daily_reward_elem is None:
-        return Response("""<response><code>500</code><message>Missing <login_bonus> element in XML.</message></response>""", media_type="application/xml")
+        return Response("""<response><code>500</code><message>Missing login_bonus element in XML.</message></response>""", media_type=XML_CONTENT_TYPE)
 
     last_count_elem = daily_reward_elem.find("last_count")
     if last_count_elem is None or not last_count_elem.text.isdigit():
-        return Response("""<response><code>500</code><message>Invalid or missing last_count in XML.</message></response>""", media_type="application/xml")
+        return Response("""<response><code>500</code><message>Invalid or missing last_count in XML.</message></response>""", media_type=XML_CONTENT_TYPE)
     last_count = int(last_count_elem.text)
     now_count = 1
 
@@ -102,7 +100,6 @@ async def start(request: Request):
         else:
             now_count = current_day
     else:
-        # Bug fix: In case the device does not exist, create it to avoid issues with daily rewards
         await create_device(device_id, datetime.now())
 
     now_count_elem = daily_reward_elem.find("now_count")
@@ -112,12 +109,10 @@ async def start(request: Request):
     now_count_elem.text = str(now_count)
 
     if user_id:
-        # This is a logged in user
         my_stage, my_avatar = await get_user_entitlement_from_devices(user_id)
-        coin = device_info['coin'] if device_info is not None else 0
+        coin = device_info['coin'] if device_info['coin'] is not None else 0
 
     elif device_info:
-        # This is a guest user with existing data
         my_avatar = set(device_info['my_avatar']) if device_info['my_avatar'] else START_AVATARS
         my_stage = set(device_info['my_stage']) if device_info['my_stage'] else START_STAGES
         coin = device_info['coin'] if device_info['coin'] is not None else 0
@@ -159,10 +154,10 @@ async def start(request: Request):
             sid = get_stage_zero()
             root.append(sid)
         except Exception as e:
-            return Response(f"""<response><code>500</code><message>Error retrieving stage zero: {str(e)}</message></response>""", media_type="application/xml")
+            return Response(f"""<response><code>500</code><message>Error retrieving stage zero: {str(e)}</message></response>""", media_type=XML_CONTENT_TYPE)
 
     xml_response = ET.tostring(root, encoding='unicode')
-    return Response(xml_response, media_type="application/xml")
+    return Response(xml_response, media_type=XML_CONTENT_TYPE)
 
 async def sync(request: Request):
     decrypted_fields, _ = await decrypt_fields(request)
@@ -170,17 +165,12 @@ async def sync(request: Request):
     if not decrypted_fields:
         return Response(
             """<response><code>10</code><message>Invalid request data.</message></response>""",
-            media_type="application/xml"
+            media_type=XML_CONTENT_TYPE
         )
 
-    should_serve_result = await should_serve_init(decrypted_fields)
-    if not should_serve_result:
-        return Response(
-            """<response><code>403</code><message>Access denied.</message></response>""",
-            media_type="application/xml"
-        )
+    if not await should_serve_init(decrypted_fields):
+        return Response(XML_ACCESS_DENIED, media_type=XML_CONTENT_TYPE)
 
-    device_id = decrypted_fields[b'vid'][0].decode()
     root = copy.deepcopy(SYNC_XML.getroot())
 
     user_info, device_info = await decrypt_fields_to_user_info(decrypted_fields)
@@ -194,13 +184,11 @@ async def sync(request: Request):
     root.append(await get_m4a_path(decrypted_fields, user_id))
     root.append(await get_stage_path(decrypted_fields, user_id))
     if user_id:
-        # This is a logged in user
         my_stage, my_avatar = await get_user_entitlement_from_devices(user_id)
         coin = device_info['coin'] if device_info['coin'] is not None else 0
         items = device_info['item'] if device_info['item'] else []
 
     elif device_info:
-        # This is a guest user with existing data
         my_avatar = set(device_info['my_avatar']) if device_info['my_avatar'] else START_AVATARS
         my_stage = set(device_info['my_stage']) if device_info['my_stage'] else START_STAGES
         coin = device_info['coin'] if device_info['coin'] is not None else 0
@@ -257,12 +245,12 @@ async def sync(request: Request):
         root.append(kid)
 
     xml_response = ET.tostring(root, encoding='unicode')
-    return Response(xml_response, media_type="application/xml")
+    return Response(xml_response, media_type=XML_CONTENT_TYPE)
 
 async def bonus(request: Request):
     decrypted_fields, _ = await decrypt_fields(request)
     if not decrypted_fields:
-        return Response("""<response><code>10</code><message>Invalid request data.</message></response>""", media_type="application/xml")
+        return Response("""<response><code>10</code><message>Invalid request data.</message></response>""", media_type=XML_CONTENT_TYPE)
 
     device_id = decrypted_fields[b'vid'][0].decode()
     user_info, device_info = await decrypt_fields_to_user_info(decrypted_fields)
@@ -272,7 +260,7 @@ async def bonus(request: Request):
     daily_reward_elem = root.find(".//login_bonus")
     last_count_elem = daily_reward_elem.find("last_count")
     if last_count_elem is None or not last_count_elem.text.isdigit():
-        return Response("""<response><code>500</code><message>Invalid or missing last_count in XML.</message></response>""", media_type="application/xml")
+        return Response("""<response><code>500</code><message>Invalid or missing last_count in XML.</message></response>""", media_type=XML_CONTENT_TYPE)
     last_count = int(last_count_elem.text)
 
     user_id = user_info['id'] if user_info else None
@@ -341,7 +329,7 @@ async def bonus(request: Request):
         await create_device(device_id, time)
         xml_response = "<response><code>0</code></response>"
 
-    return Response(xml_response, media_type="application/xml")
+    return Response(xml_response, media_type=XML_CONTENT_TYPE)
 
 routes = [
     Route('/info.php', info, methods=['GET']),

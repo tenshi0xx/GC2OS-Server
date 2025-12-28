@@ -9,9 +9,12 @@ import re
 import xml.etree.ElementTree as ET
 import copy
 import os
-from config import MODEL, TUNEFILE, SKIN, AUTHORIZATION_NEEDED, AUTHORIZATION_MODE, GRANDFATHERED_ACCOUNT_LIMIT, BIND_SALT
+import aiofiles
+from config import MODEL, TUNEFILE, SKIN, AUTHORIZATION_NEEDED, AUTHORIZATION_MODE, GRANDFATHERED_ACCOUNT_LIMIT, BIND_SALT, OVERRIDE_HOST, HOST, PORT
 from api.database import get_bind, check_whitelist, check_blacklist, decrypt_fields_to_user_info, user_id_to_user_info_simple, get_device_info, refresh_bind
 from api.template import START_XML
+
+GC2_FILES_PATH = "files/gc2/"
 
 FMAX_VER = None
 FMAX_RES = None
@@ -65,7 +68,7 @@ def hash_password(password):
     return hashed_password.decode('utf-8')
 
 def verify_password(password, hashed_password):
-    if type(hashed_password) == str:
+    if isinstance(hashed_password, str):
         hashed_password = hashed_password.encode('utf-8')
 
     return bcrypt.checkpw(password.encode('utf-8'), hashed_password)
@@ -85,7 +88,7 @@ async def get_model_pak(decrypted_fields, user_id):
     if AUTHORIZATION_MODE == 0:
         auth_token = device_id
         rid.text = MODEL
-        uid.text = host + "files/gc2/" + auth_token + "/pak/model" + MODEL + ".pak"
+        uid.text = host + GC2_FILES_PATH + auth_token + "/pak/model" + MODEL + ".pak"
     else:
         if user_id:
             device_info = await get_device_info(device_id)
@@ -95,7 +98,7 @@ async def get_model_pak(decrypted_fields, user_id):
                 if not auth_token:
                     auth_token = await refresh_bind(user_id, device_id)
                 rid.text = MODEL
-                uid.text = host + "files/gc2/" + auth_token + "/pak/model" + MODEL + ".pak"
+                uid.text = host + GC2_FILES_PATH + auth_token + "/pak/model" + MODEL + ".pak"
             else:
                 rid.text = "1"
                 uid.text = host + "files/gc/model1.pak"
@@ -118,7 +121,7 @@ async def get_tune_pak(decrypted_fields, user_id):
     if AUTHORIZATION_MODE == 0:
         auth_token = device_id
         rid.text = TUNEFILE
-        uid.text = host + "files/gc2/" + auth_token + "/pak/tuneFile" + TUNEFILE + ".pak"
+        uid.text = host + GC2_FILES_PATH + auth_token + "/pak/tuneFile" + TUNEFILE + ".pak"
     else:
         if user_id:
             device_info = await get_device_info(device_id)
@@ -126,7 +129,7 @@ async def get_tune_pak(decrypted_fields, user_id):
             if bind_info and bind_info['is_verified'] == 1:
                 auth_token = device_info['bind_token']
                 rid.text = TUNEFILE
-                uid.text = host + "files/gc2/" + auth_token + "/pak/tuneFile" + TUNEFILE + ".pak"
+                uid.text = host + GC2_FILES_PATH + auth_token + "/pak/tuneFile" + TUNEFILE + ".pak"
             else:
                 rid.text = "1"
                 uid.text = host + "files/gc/tuneFile1.pak"
@@ -149,7 +152,7 @@ async def get_skin_pak(decrypted_fields, user_id):
     if AUTHORIZATION_MODE == 0:
         auth_token = device_id
         rid.text = SKIN
-        uid.text = host + "files/gc2/" + auth_token + "/pak/skin" + SKIN + ".pak"
+        uid.text = host + GC2_FILES_PATH + auth_token + "/pak/skin" + SKIN + ".pak"
     else:
         if user_id:
             device_info = await get_device_info(device_id)
@@ -157,7 +160,7 @@ async def get_skin_pak(decrypted_fields, user_id):
             if bind_info and bind_info['is_verified'] == 1:
                 auth_token = device_info['bind_token']
                 rid.text = SKIN
-                uid.text = host + "files/gc2/" + auth_token + "/pak/skin" + SKIN + ".pak"
+                uid.text = host + GC2_FILES_PATH + auth_token + "/pak/skin" + SKIN + ".pak"
             else:
                 rid.text = "1"
                 uid.text = host + "files/gc/skin1.pak"
@@ -175,14 +178,14 @@ async def get_m4a_path(decrypted_fields, user_id):
     if AUTHORIZATION_MODE == 0:
         auth_token = device_id
         mid = ET.Element("m4a_path")
-        mid.text = host + "files/gc2/" + auth_token + "/audio/"
+        mid.text = host + GC2_FILES_PATH + auth_token + "/audio/"
     else:
         if user_id:
             device_info = await get_device_info(device_id)
             bind_info = await get_bind(user_id)
             if bind_info and bind_info['is_verified'] == 1:
                 mid = ET.Element("m4a_path")
-                mid.text = host + "files/gc2/" + device_info['bind_token'] + "/audio/"
+                mid.text = host + GC2_FILES_PATH + device_info['bind_token'] + "/audio/"
             else:
                 mid = ET.Element("m4a_path")
                 mid.text = host
@@ -198,14 +201,14 @@ async def get_stage_path(decrypted_data, user_id):
     if AUTHORIZATION_MODE == 0:
         auth_token = device_id
         mid = ET.Element("stage_path")
-        mid.text = host + "files/gc2/" + auth_token + "/stage/"
+        mid.text = host + GC2_FILES_PATH + auth_token + "/stage/"
     else:
         if user_id:
             device_info = await get_device_info(device_id)
             bind_info = await get_bind(user_id)
             if bind_info and bind_info['is_verified'] == 1:
                 mid = ET.Element("stage_path")
-                mid.text = host + "files/gc2/" + device_info['bind_token'] + "/stage/"
+                mid.text = host + GC2_FILES_PATH + device_info['bind_token'] + "/stage/"
             else:
                 mid = ET.Element("stage_path")
                 mid.text = host
@@ -225,23 +228,27 @@ def get_stage_zero():
     sid.append(cid)
     return sid
 
+# Mapping for inform_page mode to image paths
+INFORM_PAGE_IMAGES = {
+    0: "/files/web/ttl_taitoid.png",
+    1: "/files/web/ttl_information.png",
+    2: "/files/web/ttl_buy.png",
+    3: "/files/web/ttl_title.png",
+    4: "/files/web/ttl_rank.png",
+    5: "/files/web/ttl_mission.png",
+    6: "/files/web/ttl_shop.png",
+}
+
+# Cache for inform.html template
+_inform_html_cache = None
+
 def inform_page(text, mode):
-    if mode == 0:
-        mode = "/files/web/ttl_taitoid.png"
-    elif mode == 1:
-        mode = "/files/web/ttl_information.png"
-    elif mode == 2:
-        mode = "/files/web/ttl_buy.png"
-    elif mode == 3:
-        mode = "/files/web/ttl_title.png"
-    elif mode == 4:
-        mode = "/files/web/ttl_rank.png"
-    elif mode == 5:
-        mode = "/files/web/ttl_mission.png"
-    elif mode == 6:
-        mode = "/files/web/ttl_shop.png"
-    with open("web/inform.html", "r") as file:
-        return HTMLResponse(file.read().format(text=text, img=mode))
+    global _inform_html_cache
+    img = INFORM_PAGE_IMAGES.get(mode, INFORM_PAGE_IMAGES[0])
+    if _inform_html_cache is None:
+        with open("web/inform.html", "r") as file:
+            _inform_html_cache = file.read()
+    return HTMLResponse(_inform_html_cache.format(text=text, img=img))
     
 def safe_int(val):
     try:
@@ -305,17 +312,13 @@ async def generate_salt(user_id):
     return str(crc32_hash)
 
 async def get_host_string():
-    from config import OVERRIDE_HOST, HOST, PORT
-    host_string = OVERRIDE_HOST if OVERRIDE_HOST is not None else ("http://" + HOST + ":" + str(PORT) + "/")
-    return host_string
+    return OVERRIDE_HOST if OVERRIDE_HOST is not None else f"http://{HOST}:{PORT}/"
 
 async def get_start_xml():
     root = copy.deepcopy(START_XML.getroot())
-    with open(os.path.join('files/notice.xml'), 'r', encoding='utf-8') as f:
-        response_xml = ET.parse(f)
-        response_root = response_xml.getroot()
-
-        for child in response_root:
+    async with aiofiles.open('files/notice.xml', 'r', encoding='utf-8') as f:
+        content = await f.read()
+        response_xml = ET.fromstring(content)
+        for child in response_xml:
             root.append(child)
-
     return root

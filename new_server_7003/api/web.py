@@ -2,13 +2,16 @@ from starlette.requests import Request
 from starlette.routing import Route
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 import secrets
-from datetime import datetime
+from datetime import datetime, timezone
 import time
+import aiofiles
 
 from api.database import player_database, webs, is_admin, user_name_to_user_info, user_id_to_user_info_simple, get_user_export_data
 from api.misc import verify_password, should_serve_web
 from api.file import convert_user_export_data
 from config import AUTHORIZATION_MODE, SAVE_EXPORT_COOLDOWN
+
+LOGIN_REDIRECT_URL = "/login"
 
 async def is_user(request: Request):
     token = request.cookies.get("token")
@@ -30,8 +33,8 @@ async def is_user(request: Request):
     return True, web_data
 
 async def web_login_page(request: Request):
-    with open("web/login.html", "r", encoding="utf-8") as file:
-        html_template = file.read()
+    async with aiofiles.open("web/login.html", "r", encoding="utf-8") as file:
+        html_template = await file.read()
     return HTMLResponse(content=html_template)
 
 async def web_login_login(request: Request):
@@ -59,7 +62,7 @@ async def web_login_login(request: Request):
         
         query = webs.update().where(webs.c.user_id == user_info['id']).values(
             web_token=token,
-            updated_at=datetime.utcnow()
+            updated_at=datetime.now(timezone.utc)
         )
     else:
         query = webs.insert().values(
@@ -67,8 +70,8 @@ async def web_login_login(request: Request):
             permission=1,
             web_token=token,
             last_save_export=0,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc)
         )
 
     await player_database.execute(query)
@@ -112,29 +115,30 @@ async def user_center_api(request: Request):
         return JSONResponse({"status": "failed", "message": "Invalid action."}, status_code=400)
     
 async def user_center_page(request: Request):
-    serve, web_data = await is_user(request)
+    serve, _ = await is_user(request)
     if not serve:
-        response = RedirectResponse(url="/login")
+        response = RedirectResponse(url=LOGIN_REDIRECT_URL)
         response.delete_cookie(key="token")
         return response
     
-    with open("web/user.html", "r", encoding="utf-8") as file:
-        html_template = file.read()
-        is_adm = await is_admin(request.cookies.get("token"))
-        if is_adm:
-            admin_button = f"""
-            <div class="container mt-4">
-                <button class="btn btn-light" onclick="window.location.href='/admin'">Admin Panel</button>
-            </div>
-            """
-            html_template += admin_button
+    async with aiofiles.open("web/user.html", "r", encoding="utf-8") as file:
+        html_template = await file.read()
+    
+    is_adm = await is_admin(request.cookies.get("token"))
+    if is_adm:
+        admin_button = """
+        <div class="container mt-4">
+            <button class="btn btn-light" onclick="window.location.href='/admin'">Admin Panel</button>
+        </div>
+        """
+        html_template += admin_button
 
     return HTMLResponse(content=html_template)
 
 async def user_center_export_data(request: Request):
     serve, web_data = await is_user(request)
     if not serve:
-        response = RedirectResponse(url="/login")
+        response = RedirectResponse(url=LOGIN_REDIRECT_URL)
         response.delete_cookie(key="token")
         return response
     
@@ -155,7 +159,7 @@ async def user_center_export_data(request: Request):
 
     update_query = webs.update().where(webs.c.user_id == user_id).values(
         last_save_export=int(current_time),
-        updated_at=datetime.utcnow()
+        updated_at=datetime.now(timezone.utc)
     )
     await player_database.execute(update_query)
 

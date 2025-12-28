@@ -12,7 +12,9 @@ from api.template import START_AVATARS, START_STAGES
 
 import os
 import databases
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+ACCOUNTS_ID_COLUMN = "accounts.id"
 
 DB_NAME = "player.db"
 DB_PATH = os.path.join(os.getcwd(), DB_NAME)
@@ -28,7 +30,6 @@ cache_metadata = sqlalchemy.MetaData()
 player_database = databases.Database(DATABASE_URL)
 player_metadata = sqlalchemy.MetaData()
 
-#----------------------- Table definitions -----------------------#
 
 accounts = Table(
     "accounts",
@@ -53,7 +54,7 @@ devices = Table(
     "devices",
     player_metadata,
     Column("device_id", String(64), primary_key=True),
-    Column("user_id", Integer, ForeignKey("accounts.id")),
+    Column("user_id", Integer, ForeignKey(ACCOUNTS_ID_COLUMN)),
     Column("my_stage", JSON, default=[]),
     Column("my_avatar", JSON, default=[]),
     Column("item", JSON, default=[]),
@@ -74,7 +75,7 @@ results = Table(
     player_metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("device_id", String(64), ForeignKey("devices.device_id")),
-    Column("user_id", Integer, ForeignKey("accounts.id")),
+    Column("user_id", Integer, ForeignKey(ACCOUNTS_ID_COLUMN)),
     Column("stts", JSON, nullable=False),
     Column("song_id", Integer, nullable=False),
     Column("mode", Integer, nullable=False),
@@ -100,7 +101,7 @@ webs = Table(
     "webs",
     player_metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("user_id", Integer, ForeignKey("accounts.id")),
+    Column("user_id", Integer, ForeignKey(ACCOUNTS_ID_COLUMN)),
     Column("permission", Integer, default=1),
     Column("web_token", String(128), unique=True, nullable=False),
     Column("last_save_export", Integer, nullable=True),
@@ -139,7 +140,7 @@ binds = Table(
     "binds",
     player_metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("user_id", Integer, ForeignKey("accounts.id")),
+    Column("user_id", Integer, ForeignKey(ACCOUNTS_ID_COLUMN)),
     Column("bind_account", String(128), unique=True, nullable=False),
     Column("bind_code", String(6), nullable=False),
     Column("is_verified", Integer, default=0),
@@ -150,7 +151,7 @@ logs = Table(
     "logs",
     player_metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("user_id", Integer, ForeignKey("accounts.id")),
+    Column("user_id", Integer, ForeignKey(ACCOUNTS_ID_COLUMN)),
     Column("filename", String(255), nullable=False),
     Column("filesize", Integer, nullable=False),
     Column("timestamp", DateTime, default=datetime.utcnow)
@@ -199,9 +200,6 @@ async def ensure_user_columns():
         if "bind_token" not in columns:
             await db.execute("ALTER TABLE devices ADD COLUMN bind_token TEXT;")
             alter_needed = True
-        #if "coin_mp" not in columns:
-        #    await db.execute("ALTER TABLE user ADD COLUMN coin_mp INTEGER DEFAULT 1;")
-        #    alter_needed = True
         if alter_needed:
             await db.commit()
             print("[DB] Added missing columns to user table.")
@@ -229,14 +227,14 @@ async def log_download(user_id, filename, filesize):
         user_id=user_id,
         filename=filename,
         filesize=filesize,
-        timestamp=datetime.utcnow()
+        timestamp=datetime.now(timezone.utc).replace(tzinfo=None)
     )
     await player_database.execute(query)
 
 async def get_downloaded_bytes(user_id, hours):
     query = select(sqlalchemy.func.sum(logs.c.filesize)).where(
         (logs.c.user_id == user_id) &
-        (logs.c.timestamp >= datetime.utcnow() - timedelta(hours=hours))
+        (logs.c.timestamp >= datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=hours))
     )
     result = await player_database.fetch_one(query)
     return result[0] if result[0] is not None else 0
@@ -250,7 +248,7 @@ async def verify_user_code(code, user_id):
         (binds.c.bind_code == code) &
         (binds.c.user_id == user_id) &
         (binds.c.is_verified == 0) &
-        (binds.c.bind_date >= datetime.utcnow() - timedelta(minutes=10))
+        (binds.c.bind_date >= datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=10))
     )
     result = await player_database.fetch_one(query)
     if not result:
@@ -258,7 +256,7 @@ async def verify_user_code(code, user_id):
 
     update_query = update(binds).where(binds.c.id == result['id']).values(
         is_verified=1,
-        bind_date=datetime.utcnow()
+        bind_date=datetime.now(timezone.utc).replace(tzinfo=None)
     )
     await player_database.execute(update_query)
     return "Verified and account successfully bound."
@@ -351,7 +349,7 @@ async def get_user_entitlement_from_devices(user_id, should_cap = True):
     return list(stage_set), list(avatar_set)
 
 async def set_user_data_using_decrypted_fields(decrypted_fields, data_fields):
-    data_fields['updated_at'] = datetime.utcnow()
+    data_fields['updated_at'] = datetime.now(timezone.utc).replace(tzinfo=None)
     device_id = decrypted_fields[b'vid'][0].decode()
     device_query = devices.select().where(devices.c.device_id == device_id)
     device_result = await player_database.fetch_one(device_query)
@@ -365,7 +363,7 @@ async def set_user_data_using_decrypted_fields(decrypted_fields, data_fields):
         await player_database.execute(query)
 
 async def set_device_data_using_decrypted_fields(decrypted_fields, data_fields):
-    data_fields['updated_at'] = datetime.utcnow()
+    data_fields['updated_at'] = datetime.now(timezone.utc).replace(tzinfo=None)
     device_id = decrypted_fields[b'vid'][0].decode()
     query = (
         update(devices)
@@ -393,8 +391,8 @@ async def create_user(username, password_hash, device_id):
         mobile_delta=0,
         arcade_delta=0,
         total_delta=0,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow()
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        updated_at=datetime.now(timezone.utc).replace(tzinfo=None)
     )
     user_id = await player_database.execute(insert_query)
     await login_user(user_id, device_id)
@@ -411,7 +409,7 @@ async def login_user(user_id, device_id):
     query = (
         update(devices)
         .where(devices.c.device_id == device_id)
-        .values(user_id=user_id, last_login_at=datetime.utcnow())
+        .values(user_id=user_id, last_login_at=datetime.now(timezone.utc).replace(tzinfo=None))
     )
     await player_database.execute(query)
 
@@ -436,8 +434,8 @@ async def create_device(device_id, current_time):
         lvl=1,
         title=1,
         avatar=1,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        updated_at=datetime.now(timezone.utc).replace(tzinfo=None),
         last_login_at=None
     )
     await player_database.execute(insert_query)
@@ -467,7 +465,7 @@ async def clear_rank_cache(key):
 
 async def write_rank_cache(key, value, expire_seconds=None):
     if expire_seconds:
-        expire_time = datetime.utcnow() + timedelta(seconds=expire_seconds)
+        expire_time = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(seconds=expire_seconds)
     else:
         expire_time = None
     
@@ -483,64 +481,53 @@ async def get_rank_cache(key):
     result = await cache_database.fetch_one(query)
     if result:
         expire_at = datetime.fromisoformat(result['expire_at']) if result['expire_at'] else None
-        if expire_at and expire_at < datetime.utcnow():
+        if expire_at and expire_at < datetime.now(timezone.utc).replace(tzinfo=None):
             await clear_rank_cache(key)
             return None
         return dict(result)['value']
     return None
 
+def _serialize_json_fields(data):
+    for value in data.values():
+        if not isinstance(value, list):
+            continue
+        for item in value:
+            if not isinstance(item, dict):
+                continue
+            for field, field_value in item.items():
+                if isinstance(field_value, (dict, list)):
+                    item[field] = json.dumps(field_value)
+
 async def get_user_export_data(user_id):
-    user_data = {}
     user_info, device_list = await user_id_to_user_info(user_id)
+    user_info['save_data'] = await read_user_save_file(user_id)
 
-    user_save = await read_user_save_file(user_id)
-    user_info['save_data'] = user_save
+    all_results = await player_database.fetch_all(results.select().where(results.c.user_id == user_id))
+    user_binds = await player_database.fetch_all(binds.select().where(binds.c.user_id == user_id))
 
-    user_data['account'] = [user_info]
-    user_data['devices'] = device_list
-
-    all_results_query = results.select().where(results.c.user_id == user_id)
-    all_results = await player_database.fetch_all(all_results_query)
-    user_data['results'] = [dict(result) for result in all_results]
-
-    user_binds_query = binds.select().where(binds.c.user_id == user_id)
-    user_binds = await player_database.fetch_all(user_binds_query)
-
-    user_data['binds'] = [dict(bind) for bind in user_binds]
-    # Convert JSON fields to strings
-    for key, value in user_data.items():
-        if isinstance(value, list):
-            for item in value:
-                if isinstance(item, dict):
-                    for field, field_value in item.items():
-                        if isinstance(field_value, (dict, list)):
-                            item[field] = json.dumps(field_value)
-
+    user_data = {
+        'account': [user_info],
+        'devices': device_list,
+        'results': [dict(r) for r in all_results],
+        'binds': [dict(b) for b in user_binds]
+    }
+    _serialize_json_fields(user_data)
     return user_data
 
 async def read_user_save_file(user_id):
-    if user_id is None:
+    if user_id is None or not isinstance(user_id, int):
         return ""
-    elif type(user_id) != int:
+    try:
+        async with aiofiles.open(f"./save/{user_id}.dat", "rb") as file:
+            return (await file.read()).decode("utf-8")
+    except FileNotFoundError:
         return ""
-    else:
-        try:
-            async with aiofiles.open(f"./save/{user_id}.dat", "rb") as file:
-                result = await file.read()
-                result = result.decode("utf-8")
-                return result
-            
-        except FileNotFoundError:
-            return ""
         
 async def write_user_save_file(user_id, data):
-    if user_id is None:
+    if user_id is None or not isinstance(user_id, int):
         return
-    elif type(user_id) != int:
-        return
-    else:
-        try:
-            async with aiofiles.open(f"./save/{user_id}.dat", "wb") as file:
-                await file.write(data.encode("utf-8"))
-        except Exception as e:
-            print(f"An error occurred while writing the file: {e}")
+    try:
+        async with aiofiles.open(f"./save/{user_id}.dat", "wb") as file:
+            await file.write(data.encode("utf-8"))
+    except OSError as e:
+        print(f"An error occurred while writing the file: {e}")

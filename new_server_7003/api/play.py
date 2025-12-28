@@ -4,7 +4,7 @@ from starlette.routing import Route
 import json
 import copy
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, timezone
 
 from config import COIN_REWARD
 
@@ -13,180 +13,152 @@ from api.crypt import decrypt_fields
 from api.template import START_STAGES, EXP_UNLOCKED_SONGS, RESULT_XML
 from api.misc import should_serve
 
-async def score_delta(mode, old_score, new_score):
-    mobile_modes = [1, 2, 3]
-    arcade_modes = [11, 12, 13]
-    if mode in mobile_modes:
-        return new_score - old_score, 0, new_score - old_score
-    elif mode in arcade_modes:
-        return 0, new_score - old_score, new_score - old_score
-    else:
-        return 0, 0, 0
+XML_CONTENT_TYPE = "application/xml"
+XML_INVALID_REQUEST = """<response><code>10</code><message>Invalid request data.</message></response>"""
+XML_ACCESS_DENIED = """<response><code>403</code><message>Access denied.</message></response>"""
+
+MOBILE_MODES = {1, 2, 3}
+ARCADE_MODES = {11, 12, 13}
+
+def score_delta(mode, old_score, new_score):
+    delta = new_score - old_score
+    if mode in MOBILE_MODES:
+        return delta, 0, delta
+    if mode in ARCADE_MODES:
+        return 0, delta, delta
+    return 0, 0, 0
+
+def _parse_result_fields(decrypted_fields):
+    return {
+        'device_id': decrypted_fields[b'vid'][0].decode(),
+        'stts': decrypted_fields[b'stts'][0].decode(),
+        'song_id': int(decrypted_fields[b'id'][0].decode()),
+        'mode': int(decrypted_fields[b'mode'][0].decode()),
+        'avatar': int(decrypted_fields[b'avatar'][0].decode()),
+        'score': int(decrypted_fields[b'score'][0].decode()),
+        'high_score': decrypted_fields[b'high_score'][0].decode(),
+        'play_rslt': decrypted_fields[b'play_rslt'][0].decode(),
+        'item': int(decrypted_fields[b'item'][0].decode()),
+        'device_os': decrypted_fields[b'os'][0].decode(),
+        'os_ver': decrypted_fields[b'os_ver'][0].decode(),
+        'ver': decrypted_fields[b'ver'][0].decode(),
+    }
+
+def _parse_json_fields(fields):
+    stts = json.loads(f"[{fields['stts']}]")
+    high_score = json.loads(f"[{fields['high_score']}]")
+    play_rslt = json.loads(f"[{fields['play_rslt']}]")
+    return stts, high_score, play_rslt
+
+async def _update_existing_result(record, fields, stts, high_score, play_rslt):
+    mobile_delta, arcade_delta, total_delta = score_delta(fields['mode'], record['score'], fields['score'])
+    update_query = results.update().where(results.c.id == record['id']).values(
+        device_id=fields['device_id'],
+        stts=stts,
+        avatar=fields['avatar'],
+        score=fields['score'],
+        high_score=high_score,
+        play_rslt=play_rslt,
+        item=fields['item'],
+        os=fields['device_os'],
+        os_ver=fields['os_ver'],
+        ver=fields['ver'],
+        created_at=datetime.now(timezone.utc)
+    )
+    await player_database.execute(update_query)
+    return mobile_delta, arcade_delta, total_delta
+
+async def _insert_new_result(user_id, fields, stts, high_score, play_rslt):
+    mobile_delta, arcade_delta, total_delta = score_delta(fields['mode'], 0, fields['score'])
+    insert_query = results.insert().values(
+        device_id=fields['device_id'],
+        user_id=user_id,
+        stts=stts,
+        song_id=fields['song_id'],
+        mode=fields['mode'],
+        avatar=fields['avatar'],
+        score=fields['score'],
+        high_score=high_score,
+        play_rslt=play_rslt,
+        item=fields['item'],
+        os=fields['device_os'],
+        os_ver=fields['os_ver'],
+        ver=fields['ver'],
+        created_at=datetime.now(timezone.utc)
+    )
+    row_id = await player_database.execute(insert_query)
+    return row_id, mobile_delta, arcade_delta, total_delta
+
+def _calculate_unlocked_stages(device_info, current_exp):
+    my_stage = set(device_info["my_stage"]) if device_info and device_info["my_stage"] else set(START_STAGES)
+    for song in EXP_UNLOCKED_SONGS:
+        if song["lvl"] <= current_exp:
+            my_stage.add(song["id"])
+    return sorted(my_stage)
 
 async def result_request(request: Request):
     decrypted_fields, _ = await decrypt_fields(request)
     if not decrypted_fields:
-        return Response("""<response><code>10</code><message>Invalid request data.</message></response>""", media_type="application/xml")
+        return Response(XML_INVALID_REQUEST, media_type=XML_CONTENT_TYPE)
 
-    should_serve_result = await should_serve(decrypted_fields)
+    if not await should_serve(decrypted_fields):
+        return Response(XML_ACCESS_DENIED, media_type=XML_CONTENT_TYPE)
 
-    if not should_serve_result:
-        return Response("""<response><code>403</code><message>Access denied.</message></response>""", media_type="application/xml")
-
-    device_id = decrypted_fields[b'vid'][0].decode()
     user_info, device_info = await decrypt_fields_to_user_info(decrypted_fields)
-
-    tree = copy.deepcopy(RESULT_XML)
-    root = tree.getroot()
-
-    stts = decrypted_fields[b'stts'][0].decode()
-    song_id = int(decrypted_fields[b'id'][0].decode())
-    mode = int(decrypted_fields[b'mode'][0].decode())
-    avatar = int(decrypted_fields[b'avatar'][0].decode())
-    score = int(decrypted_fields[b'score'][0].decode())
-    high_score = decrypted_fields[b'high_score'][0].decode()
-    play_rslt = decrypted_fields[b'play_rslt'][0].decode()
-    item = int(decrypted_fields[b'item'][0].decode())
-    device_os = decrypted_fields[b'os'][0].decode()
-    os_ver = decrypted_fields[b'os_ver'][0].decode()
-    ver = decrypted_fields[b'ver'][0].decode()
-
-    stts = "[" + stts + "]"
-    high_score = "[" + high_score + "]"
-    play_rslt = "[" + play_rslt + "]"
+    fields = _parse_result_fields(decrypted_fields)
 
     try:
-        stts = json.loads(stts)
-        high_score = json.loads(high_score)
-        play_rslt = json.loads(play_rslt)
-    except:
-        return Response("""<response><code>10</code><message>Invalid request data.</message></response>""", media_type="application/xml")
+        stts, high_score, play_rslt = _parse_json_fields(fields)
+    except json.JSONDecodeError:
+        return Response(XML_INVALID_REQUEST, media_type=XML_CONTENT_TYPE)
 
-    cache_key = f"{song_id}-{mode}"
+    await clear_rank_cache(f"{fields['song_id']}-{fields['mode']}")
 
-    # delete cache with key
-
-    await clear_rank_cache(cache_key)
-
-    # Start results processing
-
+    tree = copy.deepcopy(RESULT_XML)
     target_row_id = 0
     rank = None
-
     user_id = user_info['id'] if user_info else None
 
     if user_id:
-
-        query_param = {
-            "song_id": song_id,
-            "mode": mode,
-            "user_id": user_id
-        }
-        records = await results_query(query_param)
-        
+        records = await results_query({"song_id": fields['song_id'], "mode": fields['mode'], "user_id": user_id})
         mobile_delta, arcade_delta, total_delta = 0, 0, 0
 
-        if len(records) != 0:
-            # user row exists
+        if records:
             target_row_id = records[0]['id']
-            if score > records[0]['score']:
-                mobile_delta, arcade_delta, total_delta = await score_delta(mode, records[0]['score'], score)
-                update_query = results.update().where(results.c.id == records[0]['id']).values(
-                    device_id=device_id,
-                    stts=stts,
-                    avatar=avatar,
-                    score=score,
-                    high_score=high_score,
-                    play_rslt=play_rslt,
-                    item=item,
-                    os=device_os,
-                    os_ver=os_ver,
-                    ver=ver,
-                    created_at=datetime.utcnow()
-                )
-                await player_database.execute(update_query)
-
+            if fields['score'] > records[0]['score']:
+                mobile_delta, arcade_delta, total_delta = await _update_existing_result(records[0], fields, stts, high_score, play_rslt)
         else:
-            # insert new row
+            target_row_id, mobile_delta, arcade_delta, total_delta = await _insert_new_result(user_id, fields, stts, high_score, play_rslt)
 
-            mobile_delta, arcade_delta, total_delta = await score_delta(mode, 0, score)
-            insert_query = results.insert().values(
-                device_id=device_id,
-                user_id=user_id,
-                stts=stts,
-                song_id=song_id,
-                mode=mode,
-                avatar=avatar,
-                score=score,
-                high_score=high_score,
-                play_rslt=play_rslt,
-                item=item,
-                os=device_os,
-                os_ver=os_ver,
-                ver=ver,
-                created_at=datetime.utcnow()
-            )
-            result = await player_database.execute(insert_query)
-            target_row_id = result
-
-        # Calculate final rank for client display
-    
-        query_param = {
-            "song_id": song_id,
-            "mode": mode
-        }
-
-        records = await results_query(query_param)
-
-        rank = None
-        for idx, record in enumerate(records, start=1):
+        all_records = await results_query({"song_id": fields['song_id'], "mode": fields['mode']})
+        for idx, record in enumerate(all_records, start=1):
             if record["id"] == target_row_id:
                 rank = idx
                 break
 
-        # Update user score delta
-
         if total_delta:
-            update_data = {
+            await set_user_data_using_decrypted_fields(decrypted_fields, {
                 "mobile_delta": user_info['mobile_delta'] + mobile_delta,
                 "arcade_delta": user_info['arcade_delta'] + arcade_delta,
                 "total_delta": user_info['total_delta'] + total_delta
-            }
-            await set_user_data_using_decrypted_fields(decrypted_fields, update_data)
-
-    # Unlocking mission stages and updating avatars
-
-    my_stage = set(device_info["my_stage"]) if device_info and device_info["my_stage"] else set(START_STAGES)
+            })
 
     current_exp = stts[0]
-    for song in EXP_UNLOCKED_SONGS:
-        if song["lvl"] <= current_exp:
-            my_stage.add(song["id"])
-
-    my_stage = sorted(my_stage)
-
     update_data = {
         "lvl": current_exp,
-        "avatar": int(avatar),
-        "my_stage": my_stage
+        "avatar": fields['avatar'],
+        "my_stage": _calculate_unlocked_stages(device_info, current_exp)
     }
 
-    # add coins, skip 4max placeholder songs
-
-    if int(song_id) not in range(616, 1024) or int(mode) not in range(0, 4):
+    if fields['song_id'] not in range(616, 1024) or fields['mode'] not in range(0, 4):
         coin_mp = user_info['coin_mp'] if user_info else 1
-
         current_coin = device_info["coin"] if device_info and device_info["coin"] else 0
-        updated_coin = current_coin + COIN_REWARD * coin_mp
-
-        update_data["coin"] = updated_coin
+        update_data["coin"] = current_coin + COIN_REWARD * coin_mp
 
     await set_device_data_using_decrypted_fields(decrypted_fields, update_data)
 
-    after_element = root.find('.//after')
-    after_element.text = str(rank)
-    xml_response = ET.tostring(tree.getroot(), encoding='unicode')
-    return Response(xml_response, media_type="application/xml")
+    tree.getroot().find('.//after').text = str(rank)
+    return Response(ET.tostring(tree.getroot(), encoding='unicode'), media_type=XML_CONTENT_TYPE)
 
 routes = [
     Route('/result.php', result_request, methods=['GET'])
