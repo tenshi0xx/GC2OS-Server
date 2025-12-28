@@ -1,0 +1,12 @@
+pycryptodome
+databases
+requests
+sqlalchemy
+starlette
+urllib
+uvicorn
+openpyxl
+bcrypt
+aiosqlite
+aiofiles
+dicttoxml

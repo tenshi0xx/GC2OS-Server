@@ -98,3 +98,8 @@ Starlette内置Debug
 '''  
 
 DEBUG = True
+
+'''
+Expermential Features
+'''
+EXP_JSON_DATA = False

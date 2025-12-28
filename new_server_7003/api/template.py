@@ -1,7 +1,8 @@
 import json
 import os
 import xml.etree.ElementTree as ET
-
+from api.logger import warn_log, module_log, error_log
+from api.javaxmlruntime import jsontoxml
 
 SONG_LIST = []
 AVATAR_LIST = []
@@ -46,8 +47,6 @@ def init_templates():
 
     base_path = 'api/config/'
     xml_path = 'files/'
-    print("[TEMPLATES] Initializing templates...")
-
     try:
         with open(os.path.join(base_path, 'song_list.json'), 'r', encoding='utf-8') as f:
             SONG_LIST = json.load(f)
@@ -93,3 +92,54 @@ def init_templates():
         print(f"Error: {e}")
     except json.JSONDecodeError as e:
         print(f"Error decoding JSON: {e}")
+
+def init_templates_exp_json():
+    global SONG_LIST, AVATAR_LIST, ITEM_LIST, EXP_UNLOCKED_SONGS
+    global START_XML, SYNC_XML, RESULT_XML
+
+    base_path = 'api/config'
+    json_path = 'files/exp_json'
+
+    try:
+        with open(os.path.join(base_path, 'song_list.json'), 'r', encoding='utf-8') as f:
+            SONG_LIST = json.load(f)
+
+        with open(os.path.join(base_path, 'avatar_list.json'), 'r', encoding='utf-8') as f:
+            AVATAR_LIST = json.load(f)
+
+        with open(os.path.join(base_path, 'item_list.json'), 'r', encoding='utf-8') as f:
+            ITEM_LIST = json.load(f)
+
+        with open(os.path.join(base_path, 'exp_unlocked_songs.json'), 'r', encoding='utf-8') as f:
+            EXP_UNLOCKED_SONGS = json.load(f)
+
+        with open(os.path.join(json_path, 'stage_pak.json'), 'r', encoding='utf-8') as f:
+            stage_pak_xml = jsontoxml(f)
+
+        with open(os.path.join(json_path, 'start.json'), 'r', encoding='utf-8') as f:
+            START_XML = jsontoxml(f)
+
+        with open(os.path.join(json_path, 'sync.json'), 'r', encoding='utf-8') as f:
+            SYNC_XML = jsontoxml(f)
+
+        with open(os.path.join(json_path, 'result.json'), 'r', encoding='utf-8') as f:
+            RESULT_XML = jsontoxml(f)
+
+        if stage_pak_xml is not None and START_XML is not None and SYNC_XML is not None:
+            stage_pak_root = stage_pak_xml.getroot()
+            start_root = START_XML.getroot()
+            sync_root = SYNC_XML.getroot()
+            for stage in stage_pak_root.findall("stage_pak"):
+                if stage.find("id") is not None:
+                    start_root.append(stage)
+                    sync_root.append(stage)
+        else:
+            error_log("One or more JSON files failed to load or is empty.", "EXP_TEMPLATES")
+
+
+        module_log("Templates initialized successfully.", "EXP_TEMPLATES")
+    
+    except FileNotFoundError as e:
+        error_log(f'One of following errors has been occured \n {e}', 'EXP_TEMPLATES')
+    except json.JSONDecodeError as e:
+        error_log(f'Error while Decoding JSON \n {e}', 'EXP_TEMPLATES')

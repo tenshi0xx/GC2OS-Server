@@ -1,9 +1,7 @@
 from starlette.applications import Starlette
 import os
+from api.logger import warn_log
 
-# stupid loading sequence
-from api.template import init_templates
-init_templates()
 
 from api.database import player_database, cache_database, init_db
 from api.misc import get_4max_version_string
@@ -19,7 +17,17 @@ from api.file import routes as file_routes
 from api.discord_hook import routes as discord_routes
 from api.admin import routes as admin_routes
 
-from config import DEBUG, SSL_CERT, SSL_KEY, ACTUAL_HOST, ACTUAL_PORT, BATCH_DOWNLOAD_ENABLED, AUTHORIZATION_MODE
+from config import DEBUG, SSL_CERT, SSL_KEY, ACTUAL_HOST, ACTUAL_PORT, BATCH_DOWNLOAD_ENABLED, AUTHORIZATION_MODE, EXP_JSON_DATA
+
+# stupid loading sequence (added expermential json check)
+from api.template import init_templates, init_templates_exp_json
+if (EXP_JSON_DATA == True):
+    warn_log("Expermential JSON Data format was turned on \n if any issues occured while using json data format please report issues in github", "7003", FutureWarning)
+    init_templates_exp_json()
+else:
+    init_templates()
+
+
 
 if (os.path.isfile('./files/4max_ver.txt')):
     get_4max_version_string()
